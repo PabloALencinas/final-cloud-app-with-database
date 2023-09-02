@@ -55,7 +55,7 @@
             <div id="exam" class="collapse">
                 <!-- If user is authenticated, show the course exam with questions -->
                 {% if user.is_authenticated %}
-                    <form id="questionform" method="post">
+                    <form id="questionform" method="post" action="{% url 'onlinecourse:submit' course.id %}">
                         {% csrf_token %}
                         <!-- Loop through each question -->
                         {% for question in course.question_set.all %}

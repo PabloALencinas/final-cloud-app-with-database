@@ -6,7 +6,9 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.views import generic
+from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth import login, logout, authenticate
+from django.http import HttpResponseBadRequest
 import logging
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
@@ -102,6 +104,10 @@ def enroll(request, course_id):
 
     return HttpResponseRedirect(reverse(viewname='onlinecourse:course_details', args=(course.id,)))
 
+def calculate_total_score(question_results):
+    # Calculate the total score by summing the grades from question results
+    total_score = sum(result['grade'] for result in question_results)
+    return total_score
 
 # <HINT> Create a submit view to create an exam submission record for a course enrollment,
 # you may implement it based on following logic:
@@ -110,27 +116,32 @@ def enroll(request, course_id):
          # Collect the selected choices from exam form
          # Add each selected choice object to the submission object
          # Redirect to show_exam_result with the submission id
+@csrf_protect
 def submit(request, course_id):
-    # Getting user and course object
-    user = request.user
-    course = get_object_or_404(Course, pk=course_id)
+    if request.method == 'POST':
+        # Getting user and course object
+        user = request.user
+        course = get_object_or_404(Course, pk=course_id)
 
-    # Getting the associated enrollment object created when the user enrrolled in the course
-    enrollment = get_object_or_404(Enrollment, user=user, course=course)
+        # Getting the associated enrollment object created when the user enrolled in the course
+        enrollment = get_object_or_404(Enrollment, user=user, course=course)
 
-    # Creating a submission object to the enrollment
-    submission = Submission.objects.create(enrollment=enrollment)
+        # Creating a submission object referring to the enrollment
+        submission = Submission.objects.create(enrollment=enrollment)
 
-    # Collecting the selected choices from the exam form
-    selected_choices = extract_answers(request)
+        # Collecting the selected choices from the exam form
+        selected_choices = extract_answers(request)
 
-    # Adding each selected choice object to the submission object
-    for choice_id in selected_choices:
-        choice = get_object_or_404(Choice, id=choice_id)
-        submission.choices.add(choice)
+        # Adding each selected choice object to the submission object
+        for choice_id in selected_choices:
+            choice = get_object_or_404(Choice, id=choice_id)
+            submission.choices.add(choice)
 
-    # Redirecting to show_exam_result with the submission id
-    return redirect('show_exam_result', course_id=course_id, submission_id=submission.id)
+        # Redirecting to show_exam_result with the submission id
+        return redirect('onlinecourse:show_exam_result', course_id=course_id, submission_id=submission.id)
+    else:
+        # If the request method is not POST, return a 400 Bad Request response
+        return HttpResponseBadRequest("Invalid request method")
 
 
 # <HINT> A example method to collect the selected choices from the exam form from the request object
@@ -166,7 +177,7 @@ def show_exam_result(request, course_id, submission_id):
         # Get the correct choice IDs for the question
         correct_choice_ids = question.choice_set.filter(is_correct=True).values_list('id', flat=True)
 
-        # Check if the user's selected choice IDs match the correct choice IDs
+        # Check if the user's selected choice IDs are a subset of the correct choice IDs
         is_correct = set(selected_choice_ids).issubset(set(correct_choice_ids))
 
         # Calculate the question's grade
@@ -184,8 +195,11 @@ def show_exam_result(request, course_id, submission_id):
 
     # Determine if the learner passed the exam based on your passing criteria
     # You can implement this logic based on the total score and passing threshold
-    passing_threshold = 80  # Score
+    passing_threshold = 80.00  # Score
     passed_exam = total_score >= passing_threshold
+
+    # Calculate the total score using the added method
+    total_score = calculate_total_score(question_results)
 
     # Add the course, selected choice IDs, total score, and question results to the context
     context = {
@@ -197,22 +211,5 @@ def show_exam_result(request, course_id, submission_id):
     }
 
     # Render the HTML page to display exam results
-    return render(request, 'onlinecourse/exam_result.html', context)
-
-
-# Calculating the total score for the exame
-
-def calculate_total_score(selected_choice_ids, course_id):
-    # Getting all the correct choices for the given course
-    correct_choices = Choice.objects.filter(question__course_id=course_id, is_correct=True)
-
-    # Converting the correct choice IDs to a set for efficient intersection
-    correct_choice_ids = set(correct_choices.values_list('id', flat=True))
-
-    # Calculating the total score by finding the intersection of correct and selected choice IDs
-    total_score = len(set(selected_choice_ids).intersection(correct_choice_ids))
-    
-    return total_score
-
-
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
 
