@@ -36,20 +36,39 @@
 </nav>
 
 <div class="container-fluid">
-    {% if grade > 80 %}
+    {% if passed_exam %}
     <div class="alert alert-success">
-       <!--HINT Display passed info -->
+        <strong>Congratulations!</strong> You have passed the exam with a total score of {{ total_score }}.
     </div>
-        {% else %}
-        <div class="alert alert-danger">
-            <!--HINT Display failed info -->
-        </div>
-        <a class="btn btn-link text-danger" href="{% url 'onlinecourse:course_details' course.id %}">Re-test</a>
-        {% endif %}
-        <div class="card-columns-vertical mt-1">
+    {% else %}
+    <div class="alert alert-danger">
+        <strong>Sorry!</strong> You have failed the exam with a total score of {{ total_score }}.
+    </div>
+    <a class="btn btn-link text-danger" href="{% url 'onlinecourse:course_details' course.id %}">Re-test</a>
+    {% endif %}
+    
+    <div class="card-columns-vertical mt-1">
         <h5 class="">Exam results</h5>
-            <!--HINT Display exam results-->
+        
+        <!-- Display exam results for each question -->
+        {% for result in question_results %}
+        <div class="card mt-1">
+            <div class="card-header">
+                Question: {{ forloop.counter }}
+                {% if result.is_correct %}
+                <span class="badge badge-success float-right">Correct</span>
+                {% else %}
+                <span class="badge badge-danger float-right">Incorrect</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <p>{{ result.question_text }}</p>
+                <p><strong>Your Answer:</strong> {% if result.is_correct %}N/A{% else %}Incorrect{% endif %}</p>
+                <p><strong>Grade:</strong> {{ result.grade }}/{{ course.question_set.all|length }}</p>
+            </div>
         </div>
+        {% endfor %}
     </div>
+</div>
 </body>
 </html>
